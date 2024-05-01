@@ -1,22 +1,22 @@
 # Configuration for generative modelling and classification
 TRAIN_FOLDERS = [
                 # "wikipedia/train",  
-                # "ag_news/train", 
+                "../data/ag_news/data/",
                 # "imagenet32/train", 
                 # "cifar/train", 
                 # "librispeech8K/train", 
                 # "speech_commands8K/train", 
-                "irishman/train",
+                # "irishman/train",
                 # "cpu_states/train",
                  ]     # Folder containing training data
 EVAL_FOLDERS = [
                 # "wikipedia/test",  
-                # "ag_news/test", 
+                "../data/ag_news/test", 
                 # "imagenet32/test", 
                 # "cifar/test", 
                 # "librispeech8K/test", 
                 # "speech_commands8K/test", 
-                "irishman/test",
+                # "irishman/test",
                 # "cpu_states/test",
                 ]                                               # Folder containing evaluation data
 

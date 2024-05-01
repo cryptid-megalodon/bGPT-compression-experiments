@@ -108,7 +108,6 @@ class ByteDataset(Dataset):
         
         return file_bytes, label
 
-# load filenames under train and eval folder
 train_files = list_files_in_directory(TRAIN_FOLDERS)
 eval_files = list_files_in_directory(EVAL_FOLDERS)
 
@@ -124,7 +123,6 @@ patch_config = GPT2Config(num_hidden_layers=PATCH_NUM_LAYERS,
 model = bGPTForClassification(patch_config, len(train_set.labels))
 model = model.to(device)
 
-# print parameter number
 print("Parameter Number: "+str(sum(p.numel() for p in model.parameters() if p.requires_grad)))
 
 if world_size > 1:
