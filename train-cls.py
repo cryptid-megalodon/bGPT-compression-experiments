@@ -1,10 +1,13 @@
-import os
 import math
+import numpy as np
+import os
+import random
+import smart_open
 import time
 import torch
-import random
-import numpy as np
+
 from copy import deepcopy
+from dotenv import load_dotenv
 from utils import *
 from config import *
 from tqdm import tqdm
@@ -14,6 +17,7 @@ from transformers import GPT2Config, get_scheduler
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data.distributed import DistributedSampler
+
 
 # Set up distributed training
 world_size = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
@@ -36,8 +40,11 @@ torch.cuda.manual_seed_all(seed)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
-batch_size = 1
-    
+# Load environment variables from .env file. AWS or other cloud storage keys
+# can be stored in a local .env file.
+load_dotenv()
+
+
 def collate_batch(input_patches):
 
     input_patches, labels = zip(*input_patches)
@@ -167,10 +174,10 @@ def train_epoch():
         model.zero_grad(set_to_none=True)
         total_train_loss += loss.item()
         total_acc_num += acc_num.item()
-        tqdm_train_set.set_postfix({str(global_rank)+'_train_acc': total_acc_num / (iter_idx*batch_size)})
+        tqdm_train_set.set_postfix({str(global_rank)+'_train_acc': total_acc_num / (iter_idx*BATCH_SIZE)})
         iter_idx += 1
         
-    return total_acc_num / ((iter_idx-1)*batch_size)
+    return total_acc_num / ((iter_idx-1)*BATCH_SIZE)
 
 # do one epoch for eval
 def eval_epoch():
@@ -186,9 +193,9 @@ def eval_epoch():
             loss, acc_num = process_one_batch(batch)
             total_eval_loss += loss.item()
             total_acc_num += acc_num.item()
-        tqdm_eval_set.set_postfix({str(global_rank)+'_eval_acc': total_acc_num / (iter_idx*batch_size)})
+        tqdm_eval_set.set_postfix({str(global_rank)+'_eval_acc': total_acc_num / (iter_idx*BATCH_SIZE)})
         iter_idx += 1
-    return total_acc_num / ((iter_idx-1)*batch_size)
+    return total_acc_num / ((iter_idx-1)*BATCH_SIZE)
 
 # train and eval
 if __name__ == "__main__":
@@ -198,8 +205,8 @@ if __name__ == "__main__":
     train_sampler = DistributedSampler(train_set, num_replicas=world_size, rank=global_rank)
     eval_sampler = DistributedSampler(eval_set, num_replicas=world_size, rank=global_rank)
 
-    train_set = DataLoader(train_set, batch_size=batch_size, collate_fn=collate_batch, sampler=train_sampler, shuffle = (train_sampler is None))
-    eval_set = DataLoader(eval_set, batch_size=batch_size, collate_fn=collate_batch, sampler=eval_sampler, shuffle = (train_sampler is None))
+    train_set = DataLoader(train_set, batch_size=BATCH_SIZE, collate_fn=collate_batch, sampler=train_sampler, shuffle = (train_sampler is None))
+    eval_set = DataLoader(eval_set, batch_size=BATCH_SIZE, collate_fn=collate_batch, sampler=eval_sampler, shuffle = (train_sampler is None))
 
     lr_scheduler = get_scheduler(
         name="cosine",
@@ -210,9 +217,10 @@ if __name__ == "__main__":
     model = model.to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
     
-    if LOAD_FROM_PRETRAINED and os.path.exists(PRETRAINED_PATH):
+    if LOAD_FROM_PRETRAINED:
         # Load checkpoint to CPU
-        checkpoint = torch.load(PRETRAINED_PATH, map_location='cpu')
+        with smart_open.open(WEIGHTS_PATH, 'rb') as f:
+            checkpoint = torch.load(f, map_location='cpu')
 
         byte_config = GPT2Config(num_hidden_layers=BYTE_NUM_LAYERS, 
                             max_length=PATCH_SIZE+1, 
@@ -241,9 +249,10 @@ if __name__ == "__main__":
         except:
             print(f"Successfully Loaded Pretrained Checkpoint at Epoch {checkpoint['epoch']} with Acc {checkpoint['max_eval_acc']}")
 
-    if LOAD_FROM_CHECKPOINT and os.path.exists(WEIGHTS_PATH):
-        # Load checkpoint to CPU
-        checkpoint = torch.load(WEIGHTS_PATH, map_location='cpu')
+    if LOAD_FROM_CHECKPOINT:
+        # Load checkpoint to CPU. See smart open documentation for specifying s3 paths local paths work transparently.
+        with smart_open.open(WEIGHTS_PATH, 'rb') as f:
+            checkpoint = torch.load(f, map_location='cpu')
         # Here, model is assumed to be on GPU
         # Load state dict to CPU model first, then move the model to GPU
         if torch.cuda.device_count() > 1:
@@ -283,6 +292,7 @@ if __name__ == "__main__":
             if eval_acc > max_eval_acc:
                 best_epoch = epoch
                 max_eval_acc = eval_acc
+                # Checkpoint best epoch.
                 checkpoint = { 
                                 'model': model.module.state_dict() if hasattr(model, "module") else model.state_dict(),
                                 'optimizer': optimizer.state_dict(),
@@ -292,9 +302,26 @@ if __name__ == "__main__":
                                 'max_eval_acc': max_eval_acc,
                                 "labels": labels
                                 }
-                torch.save(checkpoint, WEIGHTS_PATH)
+                checkpoint_name = '{}_best_epoch.pth'.format(EXPERIMENT_NAME)
+                path = os.path.join(SAVE_WEIGHTS_PATH, checkpoint_name)
+                with smart_open(path, 'wb') as f:
+                    torch.save(checkpoint, f)
                 with open(LOGS_PATH,'a') as f:
                     f.write("Best Epoch so far!\n")
+        # Checkpoint most recent epoch.
+        checkpoint = { 
+                        'model': model.module.state_dict() if hasattr(model, "module") else model.state_dict(),
+                        'optimizer': optimizer.state_dict(),
+                        'lr_sched': lr_scheduler.state_dict(),
+                        'epoch': epoch,
+                        'best_epoch': best_epoch,
+                        'max_eval_acc': max_eval_acc,
+                        "labels": labels
+                        }
+        checkpoint_name = '{}_most_recent_epoch.pth'.format(EXPERIMENT_NAME)
+        path = os.path.join(SAVE_WEIGHTS_PATH, checkpoint_name)
+        with smart_open(path, 'wb') as f:
+            torch.save(checkpoint, f)
         
         if world_size > 1:
             dist.barrier()
