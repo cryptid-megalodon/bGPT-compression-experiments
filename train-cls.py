@@ -1,23 +1,24 @@
+from copy import deepcopy
 import math
 import numpy as np
 import os
 import random
-import smart_open
 import time
-import torch
 
-from copy import deepcopy
 from dotenv import load_dotenv
-from utils import *
-from config import *
-from tqdm import tqdm
+import smart_open
+import torch
 from torch.cuda.amp import autocast, GradScaler
-from torch.utils.data import Dataset, DataLoader
-from transformers import GPT2Config, get_scheduler
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data.distributed import DistributedSampler
+from torch.utils.data import Dataset, DataLoader
+from tqdm import tqdm
+from transformers import GPT2Config, get_scheduler
+import wandb
 
+import config as cfg
+from utils import *
 
 # Set up distributed training
 world_size = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
@@ -40,9 +41,18 @@ torch.cuda.manual_seed_all(seed)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
-# Load environment variables from .env file. AWS or other cloud storage keys
-# can be stored in a local .env file.
+# Load environment variables from .env file.
+# -- Set AWS or other cloud storage keys as env variables here.
+# -- Set wandb API key as env variable here.
 load_dotenv()
+
+def get_config_vars(module):
+    return {key: value for key, value in vars(module).items() if not key.startswith('__')}
+
+wandb.init(
+    project="Compression Experiments",
+    config=get_config_vars(cfg),
+)
 
 
 def collate_batch(input_patches):
@@ -67,7 +77,7 @@ def read_bytes(filename):
     
     ext = filename.split('.')[-1]
     ext = bytearray(ext, 'utf-8')
-    ext = [byte for byte in ext][:PATCH_SIZE]
+    ext = [byte for byte in ext][:cfg.PATCH_SIZE]
 
     with open(filename, 'rb') as f:
         file_bytes = f.read()
@@ -76,11 +86,11 @@ def read_bytes(filename):
     for byte in file_bytes:
         bytes.append(byte)
 
-    if len(bytes)%PATCH_SIZE!=0:
-        bytes = bytes + [256] * (PATCH_SIZE - len(bytes) % PATCH_SIZE)
+    if len(bytes)%cfg.PATCH_SIZE!=0:
+        bytes = bytes + [256] * (cfg.PATCH_SIZE - len(bytes) % cfg.PATCH_SIZE)
 
-    bos_patch = ext + [256] * (PATCH_SIZE - len(ext))
-    bytes = bos_patch + bytes + [256] * PATCH_SIZE
+    bos_patch = ext + [256] * (cfg.PATCH_SIZE - len(ext))
+    bytes = bos_patch + bytes + [256] * cfg.PATCH_SIZE
 
     return bytes
 
@@ -92,12 +102,12 @@ class ByteDataset(Dataset):
 
         for filename in tqdm(filenames):
             file_size = os.path.getsize(filename)
-            file_size = math.ceil(file_size / PATCH_SIZE)
+            file_size = math.ceil(file_size / cfg.PATCH_SIZE)
             ext = filename.split('.')[-1]
             label = os.path.basename(filename).split('_')[0]
             label = f"{label}.{ext}"
 
-            if file_size <= PATCH_LENGTH-2:
+            if file_size <= cfg.PATCH_LENGTH-2:
                 self.filenames.append((filename, label))
                 if label not in self.labels:
                     self.labels[label] = len(self.labels)
@@ -115,17 +125,17 @@ class ByteDataset(Dataset):
         
         return file_bytes, label
 
-train_files = list_files_in_directory(TRAIN_FOLDERS)
-eval_files = list_files_in_directory(EVAL_FOLDERS)
+train_files = list_files_in_directory(cfg.TRAIN_FOLDERS)
+eval_files = list_files_in_directory(cfg.EVAL_FOLDERS)
 
 train_set = ByteDataset(train_files)
 eval_set = ByteDataset(eval_files)
 
-patch_config = GPT2Config(num_hidden_layers=PATCH_NUM_LAYERS, 
-                    max_length=PATCH_LENGTH, 
-                    max_position_embeddings=PATCH_LENGTH,
-                    hidden_size=HIDDEN_SIZE,
-                    n_head=HIDDEN_SIZE//64,
+patch_config = GPT2Config(num_hidden_layers=cfg.PATCH_NUM_LAYERS, 
+                    max_length=cfg.PATCH_LENGTH, 
+                    max_position_embeddings=cfg.PATCH_LENGTH,
+                    hidden_size=cfg.HIDDEN_SIZE,
+                    n_head=cfg.HIDDEN_SIZE//64,
                     vocab_size=1)
 model = bGPTForClassification(patch_config, len(train_set.labels))
 model = model.to(device)
@@ -137,7 +147,7 @@ if world_size > 1:
 
 scaler = GradScaler()
 is_autocast = True
-optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
+optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.LEARNING_RATE)
 loss_fn = torch.nn.CrossEntropyLoss()
 
 # call model with a batch of input
@@ -174,10 +184,12 @@ def train_epoch():
         model.zero_grad(set_to_none=True)
         total_train_loss += loss.item()
         total_acc_num += acc_num.item()
-        tqdm_train_set.set_postfix({str(global_rank)+'_train_acc': total_acc_num / (iter_idx*BATCH_SIZE)})
+        tqdm_train_set.set_postfix({str(global_rank)+'_train_acc': total_acc_num / (iter_idx*cfg.BATCH_SIZE)})
+        if iter_idx % 20 == 0:
+            wandb.log({"batch_loss": loss.item()})
         iter_idx += 1
         
-    return total_acc_num / ((iter_idx-1)*BATCH_SIZE)
+    return total_acc_num / ((iter_idx-1)*cfg.BATCH_SIZE)
 
 # do one epoch for eval
 def eval_epoch():
@@ -193,9 +205,10 @@ def eval_epoch():
             loss, acc_num = process_one_batch(batch)
             total_eval_loss += loss.item()
             total_acc_num += acc_num.item()
-        tqdm_eval_set.set_postfix({str(global_rank)+'_eval_acc': total_acc_num / (iter_idx*BATCH_SIZE)})
+        tqdm_eval_set.set_postfix({str(global_rank)+'_eval_acc': total_acc_num / (iter_idx*cfg.BATCH_SIZE)})
         iter_idx += 1
-    return total_acc_num / ((iter_idx-1)*BATCH_SIZE)
+    wandb.log({"total_eval_loss": total_eval_loss})
+    return total_acc_num / ((iter_idx-1)*cfg.BATCH_SIZE)
 
 # train and eval
 if __name__ == "__main__":
@@ -205,28 +218,28 @@ if __name__ == "__main__":
     train_sampler = DistributedSampler(train_set, num_replicas=world_size, rank=global_rank)
     eval_sampler = DistributedSampler(eval_set, num_replicas=world_size, rank=global_rank)
 
-    train_set = DataLoader(train_set, batch_size=BATCH_SIZE, collate_fn=collate_batch, sampler=train_sampler, shuffle = (train_sampler is None))
-    eval_set = DataLoader(eval_set, batch_size=BATCH_SIZE, collate_fn=collate_batch, sampler=eval_sampler, shuffle = (train_sampler is None))
+    train_set = DataLoader(train_set, batch_size=cfg.BATCH_SIZE, collate_fn=collate_batch, sampler=train_sampler, shuffle = (train_sampler is None))
+    eval_set = DataLoader(eval_set, batch_size=cfg.BATCH_SIZE, collate_fn=collate_batch, sampler=eval_sampler, shuffle = (train_sampler is None))
 
     lr_scheduler = get_scheduler(
         name="cosine",
         optimizer=optimizer,
-        num_warmup_steps=NUM_EPOCHS * len(train_set) // 10,
-        num_training_steps=NUM_EPOCHS * len(train_set),
+        num_warmup_steps=cfg.NUM_EPOCHS * len(train_set) // 10,
+        num_training_steps=cfg.NUM_EPOCHS * len(train_set),
     )
     model = model.to(device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.LEARNING_RATE)
     
-    if LOAD_FROM_PRETRAINED:
+    if cfg.LOAD_FROM_PRETRAINED:
         # Load checkpoint to CPU
-        with smart_open.open(WEIGHTS_PATH, 'rb') as f:
+        with smart_open.open(cfg.LOAD_WEIGHTS_PATH, 'rb') as f:
             checkpoint = torch.load(f, map_location='cpu')
 
-        byte_config = GPT2Config(num_hidden_layers=BYTE_NUM_LAYERS, 
-                            max_length=PATCH_SIZE+1, 
-                            max_position_embeddings=PATCH_SIZE+1,
-                            hidden_size=HIDDEN_SIZE,
-                            n_head=HIDDEN_SIZE//64,
+        byte_config = GPT2Config(num_hidden_layers=cfg.BYTE_NUM_LAYERS, 
+                            max_length=cfg.PATCH_SIZE+1, 
+                            max_position_embeddings=cfg.PATCH_SIZE+1,
+                            hidden_size=cfg.HIDDEN_SIZE,
+                            n_head=cfg.HIDDEN_SIZE//64,
                             vocab_size=256+1)
         pretrained_model = bGPTLMHeadModel(patch_config, byte_config)
         pretrained_model.load_state_dict(checkpoint['model'])
@@ -249,9 +262,9 @@ if __name__ == "__main__":
         except:
             print(f"Successfully Loaded Pretrained Checkpoint at Epoch {checkpoint['epoch']} with Acc {checkpoint['max_eval_acc']}")
 
-    if LOAD_FROM_CHECKPOINT:
+    if cfg.LOAD_FROM_CHECKPOINT:
         # Load checkpoint to CPU. See smart open documentation for specifying s3 paths local paths work transparently.
-        with smart_open.open(WEIGHTS_PATH, 'rb') as f:
+        with smart_open.open(cfg.LOAD_WEIGHTS_PATH, 'rb') as f:
             checkpoint = torch.load(f, map_location='cpu')
         # Here, model is assumed to be on GPU
         # Load state dict to CPU model first, then move the model to GPU
@@ -279,15 +292,16 @@ if __name__ == "__main__":
         best_epoch = 0
         max_eval_acc = 0
 
-    for epoch in range(1, NUM_EPOCHS+1-pre_epoch):
+    for epoch in range(1, cfg.NUM_EPOCHS+1-pre_epoch):
         train_sampler.set_epoch(epoch)
         eval_sampler.set_epoch(epoch)
         epoch += pre_epoch
         print('-' * 21 + "Epoch " + str(epoch) + '-' * 21)
         train_acc = train_epoch()
         eval_acc = eval_epoch()
+        wandb.log({"epoch_num": epoch, "epoch_train_acc": train_acc, "epoch_eval_acc": eval_acc})
         if global_rank==0:
-            with open(LOGS_PATH,'a') as f:
+            with open(cfg.LOGS_PATH,'a') as f:
                 f.write("Epoch " + str(epoch) + "\ntrain_acc: " + str(train_acc) + "\neval_acc: " +str(eval_acc) + "\ntime: " + time.asctime(time.localtime(time.time())) + "\n\n")
             if eval_acc > max_eval_acc:
                 best_epoch = epoch
@@ -302,11 +316,11 @@ if __name__ == "__main__":
                                 'max_eval_acc': max_eval_acc,
                                 "labels": labels
                                 }
-                checkpoint_name = '{}_best_epoch.pth'.format(EXPERIMENT_NAME)
-                path = os.path.join(SAVE_WEIGHTS_PATH, checkpoint_name)
+                checkpoint_name = '{}_best_epoch.pth'.format(cfg.EXPERIMENT_NAME)
+                path = os.path.join(cfg.SAVE_WEIGHTS_PATH, checkpoint_name)
                 with smart_open(path, 'wb') as f:
                     torch.save(checkpoint, f)
-                with open(LOGS_PATH,'a') as f:
+                with open(cfg.LOGS_PATH,'a') as f:
                     f.write("Best Epoch so far!\n")
         # Checkpoint most recent epoch.
         checkpoint = { 
@@ -318,8 +332,8 @@ if __name__ == "__main__":
                         'max_eval_acc': max_eval_acc,
                         "labels": labels
                         }
-        checkpoint_name = '{}_most_recent_epoch.pth'.format(EXPERIMENT_NAME)
-        path = os.path.join(SAVE_WEIGHTS_PATH, checkpoint_name)
+        checkpoint_name = '{}_most_recent_epoch.pth'.format(cfg.EXPERIMENT_NAME)
+        path = os.path.join(cfg.SAVE_WEIGHTS_PATH, checkpoint_name)
         with smart_open(path, 'wb') as f:
             torch.save(checkpoint, f)
         
@@ -329,3 +343,5 @@ if __name__ == "__main__":
     if global_rank==0:
         print("Best Eval Epoch : "+str(best_epoch))
         print("Max Eval Accuracy : "+str(max_eval_acc))
+    
+    wandb.finish()
