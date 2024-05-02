@@ -4,6 +4,13 @@ from config import *
 from transformers import GPT2Model, GPT2LMHeadModel, PreTrainedModel
 from samplings import top_p_sampling, top_k_sampling, temperature_sampling
 
+
+def get_config_vars(module):
+    return {
+        key: value for key, value in vars(module).items() if not key.startswith("__")
+    }
+
+
 class PatchLevelDecoder(PreTrainedModel):
     """
     A Patch-level Decoder model for generating patch features in an auto-regressive manner. 
