@@ -1,7 +1,7 @@
 # Configuration for generative modelling and classification
 TRAIN_FOLDERS = [
                 # "wikipedia/train",  
-                "../data/ag_news/uncompressed/",
+                "data/ag_news/uncompressed/train",
                 # "imagenet32/train", 
                 # "cifar/train", 
                 # "librispeech8K/train", 
@@ -11,7 +11,7 @@ TRAIN_FOLDERS = [
                  ]     # Folder containing training data
 EVAL_FOLDERS = [
                 # "wikipedia/test",  
-                "../data/ag_news/uncompressed/test", 
+                "data/ag_news/uncompressed/test", 
                 # "imagenet32/test", 
                 # "cifar/test", 
                 # "librispeech8K/test", 
@@ -24,7 +24,7 @@ EVAL_FOLDERS = [
 BUCKET_NAME = "cryptid-megalodon-compression-experiments"
 BUCKET_PATH = "s3://{}/".format(BUCKET_NAME)
 CHECKPOINT_NAME = ""
-LOAD_WEIGHTS_PATH = "/".join(BUCKET_PATH, CHECKPOINT_NAME)           # Path to save weights
+LOAD_WEIGHTS_PATH = "/".join([BUCKET_PATH, CHECKPOINT_NAME])           # Path to save weights
 SAVE_WEIGHTS_PATH = BUCKET_PATH
 LOGS_PATH = "logs-test-ag-cls.txt"                              # Path to save logs
 
@@ -37,6 +37,8 @@ HIDDEN_SIZE = 768                                               # Hidden Size
 
 # Configuration for the training
 EXPERIMENT_NAME = "uncompressed_ag_news"
+LOG_WANDB_ONLINE = False                                        # Log wandb to online server.
+RANDOM_SEED = 0                                                 # Controls the random number seed for all RNGs in the experiment.
 NUM_EPOCHS = 32                                                 # Number of epochs to train for (if early stopping doesn't intervene)
 LEARNING_RATE = 1e-5                                            # Learning rate for the optimizer
 BATCH_SIZE = 1                                                  # Batch size for training

@@ -33,7 +33,7 @@ else:
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     
 # Set random seed
-seed = 0 + global_rank
+seed = cfg.RANDOM_SEED + global_rank
 random.seed(seed)
 np.random.seed(seed)
 torch.manual_seed(seed)
@@ -52,6 +52,7 @@ def get_config_vars(module):
 wandb.init(
     project="Compression Experiments",
     config=get_config_vars(cfg),
+    mode="online" if cfg.LOG_WANDB_ONLINE else "offline",
 )
 
 
