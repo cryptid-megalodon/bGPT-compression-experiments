@@ -2,3 +2,4 @@
 *.pyc
 data/*/uncompressed/
 wandb/
+logs-test-ag-cls.txt
