@@ -12,7 +12,7 @@ def write_dataset_to_files(dataset, split, output_dir):
         label = example['label']
         text = example['text']
         # Define the filename using the example index and label
-        filename = os.path.join(output_dir, f"{i}_{label}.txt")
+        filename = os.path.join(output_dir, f"{label}_{i}.txt")
         # Write the text to the file
         with open(filename, 'w') as file:
             file.write(text)
