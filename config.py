@@ -37,7 +37,7 @@ HIDDEN_SIZE = 768  # Hidden Size
 
 # Configuration for the training
 EXPERIMENT_NAME = "uncompressed_ag_news"
-LOG_WANDB_ONLINE = False  # Log wandb to online server.
+LOG_WANDB_ONLINE = True  # Log wandb to online server.
 RANDOM_SEED = 0  # Controls the random number seed for all RNGs in the experiment.
 NUM_EPOCHS = 32  # Number of epochs to train for (if early stopping doesn't intervene)
 LEARNING_RATE = 1e-5  # Learning rate for the optimizer
