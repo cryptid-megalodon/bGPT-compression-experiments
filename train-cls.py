@@ -10,7 +10,6 @@ import smart_open
 import torch
 import torch.distributed as dist
 import utils
-import wandb
 from dotenv import load_dotenv
 from torch.cuda.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -18,6 +17,8 @@ from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 from transformers import GPT2Config, get_scheduler
+
+import wandb
 
 # Set up distributed training
 world_size = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
@@ -47,6 +48,7 @@ load_dotenv()
 
 wandb.init(
     project="Compression Experiments",
+    name=cfg.EXPERIMENT_NAME,
     config=utils.get_config_vars(cfg),
     mode="online" if cfg.LOG_WANDB_ONLINE else "offline",
 )
