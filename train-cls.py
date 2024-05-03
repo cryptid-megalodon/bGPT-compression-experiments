@@ -385,7 +385,7 @@ if __name__ == "__main__":
                 }
                 checkpoint_name = "{}_best_epoch.pth".format(cfg.EXPERIMENT_NAME)
                 path = os.path.join(cfg.SAVE_WEIGHTS_PATH, checkpoint_name)
-                with smart_open(path, "wb") as f:
+                with smart_open.open(path, "wb") as f:
                     torch.save(checkpoint, f)
                 with open(cfg.LOGS_PATH, "a") as f:
                     f.write("Best Epoch so far!\n")
@@ -403,7 +403,7 @@ if __name__ == "__main__":
         }
         checkpoint_name = "{}_most_recent_epoch.pth".format(cfg.EXPERIMENT_NAME)
         path = os.path.join(cfg.SAVE_WEIGHTS_PATH, checkpoint_name)
-        with smart_open(path, "wb") as f:
+        with smart_open.open(path, "wb") as f:
             torch.save(checkpoint, f)
 
         if world_size > 1:
