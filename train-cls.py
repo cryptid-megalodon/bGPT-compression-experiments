@@ -83,6 +83,9 @@ def read_bytes(filename):
     with open(filename, "rb") as f:
         file_bytes = f.read()
 
+    if cfg.COMPRESS_BYTES:
+        file_bytes = utils.compress_file_data(file_bytes)
+
     bytes = []
     for byte in file_bytes:
         bytes.append(byte)
@@ -374,39 +377,23 @@ if __name__ == "__main__":
                 best_epoch = epoch
                 max_eval_acc = eval_acc
                 # Checkpoint best epoch.
-                checkpoint = {
-                    "model": model.module.state_dict()
-                    if hasattr(model, "module")
-                    else model.state_dict(),
-                    "optimizer": optimizer.state_dict(),
-                    "lr_sched": lr_scheduler.state_dict(),
-                    "epoch": epoch,
-                    "best_epoch": best_epoch,
-                    "max_eval_acc": max_eval_acc,
-                    "labels": labels,
-                }
-                checkpoint_name = "{}_best_epoch.pth".format(cfg.EXPERIMENT_NAME)
-                path = os.path.join(cfg.SAVE_WEIGHTS_PATH, checkpoint_name)
-                with smart_open.open(path, "wb") as f:
-                    torch.save(checkpoint, f)
+                # checkpoint = {
+                #     "model": model.module.state_dict()
+                #     if hasattr(model, "module")
+                #     else model.state_dict(),
+                #     "optimizer": optimizer.state_dict(),
+                #     "lr_sched": lr_scheduler.state_dict(),
+                #     "epoch": epoch,
+                #     "best_epoch": best_epoch,
+                #     "max_eval_acc": max_eval_acc,
+                #     "labels": labels,
+                # }
+                # checkpoint_name = "{}_best_epoch.pth".format(cfg.EXPERIMENT_NAME)
+                # path = os.path.join(cfg.SAVE_WEIGHTS_PATH, checkpoint_name)
+                # with smart_open.open(path, "wb") as f:
+                #     torch.save(checkpoint, f)
                 with open(cfg.LOGS_PATH, "a") as f:
                     f.write("Best Epoch so far!\n")
-        # Checkpoint most recent epoch.
-        checkpoint = {
-            "model": model.module.state_dict()
-            if hasattr(model, "module")
-            else model.state_dict(),
-            "optimizer": optimizer.state_dict(),
-            "lr_sched": lr_scheduler.state_dict(),
-            "epoch": epoch,
-            "best_epoch": best_epoch,
-            "max_eval_acc": max_eval_acc,
-            "labels": labels,
-        }
-        checkpoint_name = "{}_most_recent_epoch.pth".format(cfg.EXPERIMENT_NAME)
-        path = os.path.join(cfg.SAVE_WEIGHTS_PATH, checkpoint_name)
-        with smart_open.open(path, "wb") as f:
-            torch.save(checkpoint, f)
 
         if world_size > 1:
             dist.barrier()

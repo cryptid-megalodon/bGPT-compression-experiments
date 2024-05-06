@@ -1,4 +1,5 @@
 import random
+import zlib
 
 import torch
 from config import *
@@ -10,6 +11,37 @@ def get_config_vars(module):
     return {
         key: value for key, value in vars(module).items() if not key.startswith("__")
     }
+
+
+def compress_file_data(bytes):
+    """Compress byte string using DEFLATE.
+    Note: Negative wbits lengths specify that no gzip header or trailer will be
+    added to the output. See documentation for more details:
+    https://docs.python.org/2/library/zlib.html
+    """
+    compressor = zlib.compressobj(level=8, wbits=-15, memLevel=9)
+
+    compressed_bytes = compressor.compress(bytes)
+    compressed_bytes += compressor.flush()
+
+    return compressed_bytes
+
+
+def decompress_file_data(compressed_data):
+    """
+    Decompresses file data using zlib.
+
+    Args:
+    compressed_data (bytes): Compressed file data.
+
+    Returns:
+    bytes: The decompressed file data.
+    """
+    # Note: wbits, must match the wbits setting used during compression.
+    decompressor = zlib.decompressobj(wbits=-15)
+    decompressed_data = decompressor.decompress(compressed_data)
+    decompressed_data += decompressor.flush()
+    return decompressed_data
 
 
 class PatchLevelDecoder(PreTrainedModel):
