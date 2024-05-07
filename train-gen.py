@@ -98,17 +98,6 @@ def split_into_minibatches(input_patches, input_masks, minibatch_size):
     return minibatches
 
 
-def list_files_in_directory(directories):
-    file_list = []
-
-    for directory in directories:
-        for root, dirs, files in os.walk(directory):
-            for file in files:
-                file_path = os.path.join(root, file)
-                file_list.append(file_path)
-    return file_list
-
-
 def read_bytes(filename):
     ext = filename.split(".")[-1]
     ext = bytearray(ext, "utf-8")
@@ -276,8 +265,8 @@ def eval_epoch():
 # train and eval
 if __name__ == "__main__":
     # load filenames under train and eval folder
-    train_files = list_files_in_directory(cfg.TRAIN_FOLDERS)
-    eval_files = list_files_in_directory(cfg.EVAL_FOLDERS)
+    train_files = utils.list_files_in_directory(cfg.TRAIN_FOLDERS)
+    eval_files = utils.list_files_in_directory(cfg.EVAL_FOLDERS)
 
     train_batch_nums = int(len(train_files) / batch_size)
     eval_batch_nums = int(len(eval_files) / batch_size)

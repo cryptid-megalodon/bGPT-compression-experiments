@@ -64,17 +64,6 @@ def collate_batch(input_patches):
     return input_patches.to(device), labels.to(device)
 
 
-def list_files_in_directory(directories):
-    file_list = []
-
-    for directory in directories:
-        for root, dirs, files in os.walk(directory):
-            for file in files:
-                file_path = os.path.join(root, file)
-                file_list.append(file_path)
-    return file_list
-
-
 def read_bytes(filename):
     ext = filename.split(".")[-1]
     ext = bytearray(ext, "utf-8")
@@ -130,8 +119,8 @@ class ByteDataset(Dataset):
         return file_bytes, label
 
 
-train_files = list_files_in_directory(cfg.TRAIN_FOLDERS)
-eval_files = list_files_in_directory(cfg.EVAL_FOLDERS)
+train_files = utils.list_files_in_directory(cfg.TRAIN_FOLDERS)
+eval_files = utils.list_files_in_directory(cfg.EVAL_FOLDERS)
 
 train_set = ByteDataset(train_files)
 eval_set = ByteDataset(eval_files)

@@ -1,3 +1,4 @@
+import os
 import random
 import zlib
 
@@ -11,6 +12,17 @@ def get_config_vars(module):
     return {
         key: value for key, value in vars(module).items() if not key.startswith("__")
     }
+
+
+def list_files_in_directory(directories):
+    file_list = []
+
+    for directory in directories:
+        for root, dirs, files in os.walk(directory):
+            for file in files:
+                file_path = os.path.join(root, file)
+                file_list.append(file_path)
+    return file_list
 
 
 def compress_file_data(bytes):
