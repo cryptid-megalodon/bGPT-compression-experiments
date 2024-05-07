@@ -34,15 +34,15 @@ PATCH_LENGTH = 512  # Patch Length
 BYTE_NUM_LAYERS = 3  # Number of layers in the decoder
 PATCH_NUM_LAYERS = 12  # Number of layers in the encoder
 HIDDEN_SIZE = 768  # Hidden Size
-COMPRESS_BYTES = True  # Compress the content of the file before inference.
+COMPRESS_BYTES = False  # Compress the content of the file before inference.
 
 # Configuration for the training
 EXPERIMENT_NAME = "compressed_ag_news_batch_256_epochs_100"
-LOG_WANDB_ONLINE = True  # Log wandb to online server. If true, you will need to provide your wandb API key as an environment variable when running the docker container.
+LOG_WANDB_ONLINE = False  # Log wandb to online server. If true, you will need to provide your wandb API key as an environment variable when running the docker container.
 RANDOM_SEED = 0  # Controls the random number seed for all RNGs in the experiment.
-NUM_EPOCHS = 100  # Number of epochs to train for (if early stopping doesn't intervene)
+NUM_EPOCHS = 1  # Number of epochs to train for (if early stopping doesn't intervene)
 LEARNING_RATE = 1e-5  # Learning rate for the optimizer
-BATCH_SIZE = 256  # Batch size for training
+BATCH_SIZE = 1  # Batch size for training
 ACCUMULATION_STEPS = 1  # Accumulation steps to simulate large batch size
 PATCH_SAMPLING_BATCH_SIZE = (
     0  # Batch size for patch during training, 0 for full conaudio

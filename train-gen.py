@@ -3,17 +3,17 @@ import random
 import time
 from copy import deepcopy
 
+import config as cfg
 import numpy as np
 import torch
 import torch.distributed as dist
-from config import *
+import utils
 from torch.cuda.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 from transformers import GPT2Config, get_scheduler
-from utils import *
 
 # Set up distributed training
 world_size = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
@@ -36,25 +36,25 @@ torch.cuda.manual_seed_all(seed)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
-batch_size = BATCH_SIZE
+batch_size = cfg.BATCH_SIZE
 
 patch_config = GPT2Config(
-    num_hidden_layers=PATCH_NUM_LAYERS,
-    max_length=PATCH_LENGTH,
-    max_position_embeddings=PATCH_LENGTH,
-    hidden_size=HIDDEN_SIZE,
-    n_head=HIDDEN_SIZE // 64,
+    num_hidden_layers=cfg.PATCH_NUM_LAYERS,
+    max_length=cfg.PATCH_LENGTH,
+    max_position_embeddings=cfg.PATCH_LENGTH,
+    hidden_size=cfg.HIDDEN_SIZE,
+    n_head=cfg.HIDDEN_SIZE // 64,
     vocab_size=1,
 )
 byte_config = GPT2Config(
-    num_hidden_layers=BYTE_NUM_LAYERS,
-    max_length=PATCH_SIZE + 1,
-    max_position_embeddings=PATCH_SIZE + 1,
-    hidden_size=HIDDEN_SIZE,
-    n_head=HIDDEN_SIZE // 64,
+    num_hidden_layers=cfg.BYTE_NUM_LAYERS,
+    max_length=cfg.PATCH_SIZE + 1,
+    max_position_embeddings=cfg.PATCH_SIZE + 1,
+    hidden_size=cfg.HIDDEN_SIZE,
+    n_head=cfg.HIDDEN_SIZE // 64,
     vocab_size=256 + 1,
 )
-model = bGPTLMHeadModel(patch_config, byte_config)
+model = utils.bGPTLMHeadModel(patch_config, byte_config)
 model = model.to(device)
 
 # print parameter number
@@ -73,7 +73,7 @@ if world_size > 1:
 
 scaler = GradScaler()
 is_autocast = True
-optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
+optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.LEARNING_RATE)
 
 
 def collate_batch(input_batches):
@@ -112,7 +112,7 @@ def list_files_in_directory(directories):
 def read_bytes(filename):
     ext = filename.split(".")[-1]
     ext = bytearray(ext, "utf-8")
-    ext = [byte for byte in ext][:PATCH_SIZE]
+    ext = [byte for byte in ext][: cfg.PATCH_SIZE]
 
     with open(filename, "rb") as f:
         file_bytes = f.read()
@@ -121,36 +121,36 @@ def read_bytes(filename):
     for byte in file_bytes:
         bytes.append(byte)
 
-    if len(bytes) % PATCH_SIZE != 0:
-        bytes = bytes + [256] * (PATCH_SIZE - len(bytes) % PATCH_SIZE)
+    if len(bytes) % cfg.PATCH_SIZE != 0:
+        bytes = bytes + [256] * (cfg.PATCH_SIZE - len(bytes) % cfg.PATCH_SIZE)
 
-    bos_patch = ext + [256] * (PATCH_SIZE - len(ext))
-    bytes = bos_patch + bytes + [256] * PATCH_SIZE
+    bos_patch = ext + [256] * (cfg.PATCH_SIZE - len(ext))
+    bytes = bos_patch + bytes + [256] * cfg.PATCH_SIZE
 
-    if len(bytes) > PATCH_LENGTH * PATCH_SIZE:
+    if len(bytes) > cfg.PATCH_LENGTH * cfg.PATCH_SIZE:
         print(
-            f"Warning: {filename} is too long, truncating to {PATCH_LENGTH*PATCH_SIZE} bytes."
+            f"Warning: {filename} is too long, truncating to {cfg.PATCH_LENGTH*cfg.PATCH_SIZE} bytes."
         )
-        bytes = bytes[: PATCH_LENGTH * PATCH_SIZE]
+        bytes = bytes[: cfg.PATCH_LENGTH * cfg.PATCH_SIZE]
 
-    masks = [1] * (len(bytes) // PATCH_SIZE)
+    masks = [1] * (len(bytes) // cfg.PATCH_SIZE)
 
     return bytes, masks
 
 
 class ByteDataset(Dataset):
     def __init__(self, filenames):
-        if CONVERSION_MODE == None:
+        if cfg.CONVERSION_MODE == None:
             print(
-                f"Regular Training Mode: {CONVERSION_MODE}, loading {len(filenames)} files"
+                f"Regular Training Mode: {cfg.CONVERSION_MODE}, loading {len(filenames)} files"
             )
             self.filenames = filenames
-        elif "->" in CONVERSION_MODE:
+        elif "->" in cfg.CONVERSION_MODE:
             print(
-                f"Unidirectional Conversion Mode: {CONVERSION_MODE}, loading {len(filenames)} files"
+                f"Unidirectional Conversion Mode: {cfg.CONVERSION_MODE}, loading {len(filenames)} files"
             )
-            input_ext = CONVERSION_MODE.split("->")[0]
-            target_ext = CONVERSION_MODE.split("->")[1]
+            input_ext = cfg.CONVERSION_MODE.split("->")[0]
+            target_ext = cfg.CONVERSION_MODE.split("->")[1]
 
             self.filenames = []
             for filename in filenames:
@@ -158,12 +158,12 @@ class ByteDataset(Dataset):
                     target_filename = filename[: -(len(input_ext))] + target_ext
                     if os.path.exists(target_filename):
                         self.filenames.append((filename, target_filename))
-        elif "&" in CONVERSION_MODE:
+        elif "&" in cfg.CONVERSION_MODE:
             print(
-                f"Bidirectional Conversion Mode: {CONVERSION_MODE}, loading {len(filenames)} files"
+                f"Bidirectional Conversion Mode: {cfg.CONVERSION_MODE}, loading {len(filenames)} files"
             )
-            input_ext = CONVERSION_MODE.split("&")[0]
-            target_ext = CONVERSION_MODE.split("&")[1]
+            input_ext = cfg.CONVERSION_MODE.split("&")[0]
+            target_ext = cfg.CONVERSION_MODE.split("&")[1]
 
             self.filenames = []
             for filename in filenames:
@@ -182,7 +182,7 @@ class ByteDataset(Dataset):
         return len(self.filenames)
 
     def __getitem__(self, idx):
-        if CONVERSION_MODE == None:
+        if cfg.CONVERSION_MODE == None:
             filename = self.filenames[idx]
             file_bytes, file_masks = read_bytes(filename)
         else:
@@ -190,15 +190,15 @@ class ByteDataset(Dataset):
             input_bytes, input_masks = read_bytes(input_filename)
             target_bytes, target_masks = read_bytes(target_filename)
 
-            file_bytes = input_bytes[:-PATCH_SIZE] + target_bytes
+            file_bytes = input_bytes[: -cfg.PATCH_SIZE] + target_bytes
             file_masks = input_masks[:-1] + target_masks
 
-            if len(file_bytes) > PATCH_LENGTH * PATCH_SIZE:
+            if len(file_bytes) > cfg.PATCH_LENGTH * cfg.PATCH_SIZE:
                 print(
-                    f"Warning: {input_filename} and {target_filename} are too long after concatenation, truncating to {PATCH_LENGTH*PATCH_SIZE} bytes."
+                    f"Warning: {input_filename} and {target_filename} are too long after concatenation, truncating to {cfg.PATCH_LENGTH*cfg.PATCH_SIZE} bytes."
                 )
-                file_bytes = file_bytes[: PATCH_LENGTH * PATCH_SIZE]
-                file_masks = file_masks[:PATCH_LENGTH]
+                file_bytes = file_bytes[: cfg.PATCH_LENGTH * cfg.PATCH_SIZE]
+                file_masks = file_masks[: cfg.PATCH_LENGTH]
 
         file_bytes = torch.tensor(file_bytes, dtype=torch.long)
         file_masks = torch.tensor(file_masks, dtype=torch.long)
@@ -230,11 +230,11 @@ def train_epoch():
 
     for batch in tqdm_train_set:
         minibatches = split_into_minibatches(
-            batch[0], batch[1], BATCH_SIZE // ACCUMULATION_STEPS
+            batch[0], batch[1], cfg.BATCH_SIZE // cfg.ACCUMULATION_STEPS
         )
         for minibatch in minibatches:
             with autocast():
-                loss = process_one_batch(minibatch) / ACCUMULATION_STEPS
+                loss = process_one_batch(minibatch) / cfg.ACCUMULATION_STEPS
             scaler.scale(loss).backward()
             total_train_loss += loss.item()
         scaler.step(optimizer)
@@ -260,11 +260,11 @@ def eval_epoch():
     # Evaluate data for one epoch
     for batch in tqdm_eval_set:
         minibatches = split_into_minibatches(
-            batch[0], batch[1], BATCH_SIZE // ACCUMULATION_STEPS
+            batch[0], batch[1], cfg.BATCH_SIZE // cfg.ACCUMULATION_STEPS
         )
         for minibatch in minibatches:
             with torch.no_grad():
-                loss = process_one_batch(minibatch) / ACCUMULATION_STEPS
+                loss = process_one_batch(minibatch) / cfg.ACCUMULATION_STEPS
             total_eval_loss += loss.item()
         tqdm_eval_set.set_postfix(
             {str(global_rank) + "_eval_loss": total_eval_loss / iter_idx}
@@ -276,8 +276,8 @@ def eval_epoch():
 # train and eval
 if __name__ == "__main__":
     # load filenames under train and eval folder
-    train_files = list_files_in_directory(TRAIN_FOLDERS)
-    eval_files = list_files_in_directory(EVAL_FOLDERS)
+    train_files = list_files_in_directory(cfg.TRAIN_FOLDERS)
+    eval_files = list_files_in_directory(cfg.EVAL_FOLDERS)
 
     train_batch_nums = int(len(train_files) / batch_size)
     eval_batch_nums = int(len(eval_files) / batch_size)
@@ -316,15 +316,15 @@ if __name__ == "__main__":
     lr_scheduler = get_scheduler(
         name="cosine",
         optimizer=optimizer,
-        num_warmup_steps=NUM_EPOCHS * len(train_set) // 10,
-        num_training_steps=NUM_EPOCHS * len(train_set),
+        num_warmup_steps=cfg.NUM_EPOCHS * len(train_set) // 10,
+        num_training_steps=cfg.NUM_EPOCHS * len(train_set),
     )
     model = model.to(device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.LEARNING_RATE)
 
-    if LOAD_FROM_PRETRAINED and os.path.exists(PRETRAINED_PATH):
+    if cfg.LOAD_FROM_PRETRAINED and os.path.exists(cfg.LOAD_WEIGHTS_PATH):
         # Load checkpoint to CPU
-        checkpoint = torch.load(PRETRAINED_PATH, map_location="cpu")
+        checkpoint = torch.load(cfg.LOAD_WEIGHTS_PATH, map_location="cpu")
 
         # Here, model is assumed to be on GPU
         # Load state dict to CPU model first, then move the model to GPU
@@ -348,9 +348,9 @@ if __name__ == "__main__":
         best_epoch = 0
         min_eval_loss = float("inf")
 
-    if LOAD_FROM_CHECKPOINT and os.path.exists(WEIGHTS_PATH):
+    if cfg.LOAD_FROM_CHECKPOINT:
         # Load checkpoint to CPU
-        checkpoint = torch.load(WEIGHTS_PATH, map_location="cpu")
+        checkpoint = torch.load(cfg.LOAD_WEIGHTS_PATH, map_location="cpu")
 
         # Here, model is assumed to be on GPU
         # Load state dict to CPU model first, then move the model to GPU
@@ -377,14 +377,14 @@ if __name__ == "__main__":
         best_epoch = 0
         min_eval_loss = float("inf")
 
-    for epoch in range(1 + pre_epoch, NUM_EPOCHS + 1):
+    for epoch in range(1 + pre_epoch, cfg.NUM_EPOCHS + 1):
         train_sampler.set_epoch(epoch)
         eval_sampler.set_epoch(epoch)
         print("-" * 21 + "Epoch " + str(epoch) + "-" * 21)
         train_loss = train_epoch()
         eval_loss = eval_epoch()
         if global_rank == 0:
-            with open(LOGS_PATH, "a") as f:
+            with open(cfg.LOGS_PATH, "a") as f:
                 f.write(
                     "Epoch "
                     + str(epoch)
@@ -409,7 +409,7 @@ if __name__ == "__main__":
                     "best_epoch": best_epoch,
                     "min_eval_loss": min_eval_loss,
                 }
-                torch.save(checkpoint, WEIGHTS_PATH)
+                torch.save(checkpoint, cfg.SAVE_WEIGHTS_PATH)
 
         if world_size > 1:
             dist.barrier()
