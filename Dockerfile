@@ -51,4 +51,4 @@ COPY data ./data
 COPY --exclude=data . .
 
 # Run the application.
-CMD python3 train-cls.py
+CMD python3 train-gen.py

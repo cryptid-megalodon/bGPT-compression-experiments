@@ -1,7 +1,7 @@
 # Configuration for generative modelling and classification
 TRAIN_FOLDERS = [
-    # "wikipedia/train",
-    "data/ag_news/uncompressed/train",
+    "wikipedia/train",
+    # "data/ag_news/uncompressed/train",
     # "imagenet32/train",
     # "cifar/train",
     # "librispeech8K/train",
@@ -10,8 +10,8 @@ TRAIN_FOLDERS = [
     # "cpu_states/train",
 ]  # Folder containing training data
 EVAL_FOLDERS = [
-    # "wikipedia/test",
-    "data/ag_news/uncompressed/test",
+    "wikipedia/test",
+    # "data/ag_news/uncompressed/test",
     # "imagenet32/test",
     # "cifar/test",
     # "librispeech8K/test",
@@ -34,21 +34,21 @@ PATCH_LENGTH = 512  # Patch Length
 BYTE_NUM_LAYERS = 3  # Number of layers in the decoder
 PATCH_NUM_LAYERS = 12  # Number of layers in the encoder
 HIDDEN_SIZE = 768  # Hidden Size
-COMPRESS_BYTES = False  # Compress the content of the file before inference.
+COMPRESS_BYTES = True  # Compress the content of the file before inference.
 
 # Configuration for the training
-EXPERIMENT_NAME = "boto3_upload_test"
-LOG_WANDB_ONLINE = False  # Log wandb to online server. If true, you will need to provide your wandb API key as an environment variable when running the docker container.
+EXPERIMENT_NAME = "compression-pretraining-text"
+LOG_WANDB_ONLINE = True  # Log wandb to online server. If true, you will need to provide your wandb API key as an environment variable when running the docker container.
 RANDOM_SEED = 0  # Controls the random number seed for all RNGs in the experiment.
-NUM_EPOCHS = 1  # Number of epochs to train for (if early stopping doesn't intervene)
-LEARNING_RATE = 1e-5  # Learning rate for the optimizer
-BATCH_SIZE = 1  # Batch size for training
+NUM_EPOCHS = 32  # Number of epochs to train for (if early stopping doesn't intervene)
+LEARNING_RATE = 1e-4  # Learning rate for the optimizer
+BATCH_SIZE = 32  # Batch size for training
 ACCUMULATION_STEPS = 1  # Accumulation steps to simulate large batch size
 PATCH_SAMPLING_BATCH_SIZE = (
     0  # Batch size for patch during training, 0 for full conaudio
 )
 LOAD_FROM_CHECKPOINT = False  # Whether to load weights from a checkpoint
-LOAD_FROM_PRETRAINED = False  # Whether to load pre-trained weights from a checkpoint
+LOAD_FROM_PRETRAINED = True  # Whether to load pre-trained weights from a checkpoint
 SAVE_FINAL_MODEL = True  # Whether to save the final checkpoint or not.
 CONVERSION_MODE = None  # Mode of conversion (None for regular training, input->output for unidirectional conversion, input&output for bidirectional conversion)
 
