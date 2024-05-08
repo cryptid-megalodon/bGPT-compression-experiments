@@ -1,6 +1,6 @@
 # Configuration for generative modelling and classification
 TRAIN_FOLDERS = [
-    "wikipedia/train",
+    "wikipedia/uncompressed/train",
     # "data/ag_news/uncompressed/train",
     # "imagenet32/train",
     # "cifar/train",
@@ -10,7 +10,7 @@ TRAIN_FOLDERS = [
     # "cpu_states/train",
 ]  # Folder containing training data
 EVAL_FOLDERS = [
-    "wikipedia/test",
+    "wikipedia/uncompressed/test",
     # "data/ag_news/uncompressed/test",
     # "imagenet32/test",
     # "cifar/test",
