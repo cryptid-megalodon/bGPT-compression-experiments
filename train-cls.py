@@ -5,12 +5,12 @@ import time
 from copy import deepcopy
 
 import config as cfg
+import dotenv
 import numpy as np
 import smart_open
 import torch
 import torch.distributed as dist
 import utils
-from dotenv import load_dotenv
 from torch.cuda.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, Dataset
@@ -44,7 +44,7 @@ torch.backends.cudnn.benchmark = False
 # Load environment variables from .env file.
 # -- Set AWS or other cloud storage keys as env variables here.
 # -- Set wandb API key as env variable here.
-load_dotenv()
+dotenv.load_dotenv()
 
 wandb.init(
     project="Compression Experiments",
@@ -52,6 +52,7 @@ wandb.init(
     config=utils.get_config_vars(cfg),
     mode="online" if cfg.LOG_WANDB_ONLINE else "offline",
 )
+print("Weights and Bias Run ID:", wandb.run.id)
 
 
 def collate_batch(input_patches):
@@ -264,6 +265,9 @@ if __name__ == "__main__":
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.LEARNING_RATE)
 
     if cfg.LOAD_FROM_PRETRAINED:
+        print("Loading Pretrained Model:", cfg.LOAD_WEIGHTS_PATH)
+        with open(cfg.LOGS_PATH, "a") as f:
+            f.write("Loading Pretrained Model: " + cfg.LOAD_WEIGHTS_PATH + "\n")
         # Load checkpoint to CPU
         with smart_open.open(cfg.LOAD_WEIGHTS_PATH, "rb") as f:
             checkpoint = torch.load(f, map_location="cpu")
@@ -306,7 +310,10 @@ if __name__ == "__main__":
             )
 
     if cfg.LOAD_FROM_CHECKPOINT:
-        # Load checkpoint to CPU. See smart open documentation for specifying s3 paths local paths work transparently.
+        print("Loading Checkpoint:", cfg.LOAD_WEIGHTS_PATH)
+        with open(cfg.LOGS_PATH, "a") as f:
+            f.write("Loading Checkpoint: " + cfg.LOAD_WEIGHTS_PATH + "\n")
+        # Load checkpoint to CPU
         with smart_open.open(cfg.LOAD_WEIGHTS_PATH, "rb") as f:
             checkpoint = torch.load(f, map_location="cpu")
         # Here, model is assumed to be on GPU
@@ -365,22 +372,6 @@ if __name__ == "__main__":
             if eval_acc > max_eval_acc:
                 best_epoch = epoch
                 max_eval_acc = eval_acc
-                # Checkpoint best epoch.
-                # checkpoint = {
-                #     "model": model.module.state_dict()
-                #     if hasattr(model, "module")
-                #     else model.state_dict(),
-                #     "optimizer": optimizer.state_dict(),
-                #     "lr_sched": lr_scheduler.state_dict(),
-                #     "epoch": epoch,
-                #     "best_epoch": best_epoch,
-                #     "max_eval_acc": max_eval_acc,
-                #     "labels": labels,
-                # }
-                # checkpoint_name = "{}_best_epoch.pth".format(cfg.EXPERIMENT_NAME)
-                # path = os.path.join(cfg.SAVE_WEIGHTS_PATH, checkpoint_name)
-                # with smart_open.open(path, "wb") as f:
-                #     torch.save(checkpoint, f)
                 with open(cfg.LOGS_PATH, "a") as f:
                     f.write("Best Epoch so far!\n")
 
@@ -390,5 +381,36 @@ if __name__ == "__main__":
     if global_rank == 0:
         print("Best Eval Epoch : " + str(best_epoch))
         print("Max Eval Accuracy : " + str(max_eval_acc))
+
+    if cfg.SAVE_FINAL_MODEL:
+        # Checkpoint best epoch.
+        checkpoint = {
+            "model": model.module.state_dict()
+            if hasattr(model, "module")
+            else model.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "lr_sched": lr_scheduler.state_dict(),
+            "epoch": epoch,
+            "best_epoch": best_epoch,
+            "max_eval_acc": max_eval_acc,
+            "labels": labels,
+        }
+        path = os.path.join(
+            cfg.SAVE_WEIGHTS_DIR_PATH,
+            str.join(cfg.EXPERIMENT_NAME, wandb.run.id),
+        )
+        print("Saving Final Checkpoint:", path)
+        with open(cfg.LOGS_PATH, "a") as f:
+            f.write("Saving Final Checkpoint: " + path + "\n")
+        with smart_open.open(
+            path,
+            "wb",
+            transport_params={"min_part_size": 50 * 1024**2, "multipart_upload": True},
+        ) as f:
+            torch.save(checkpoint, f)
+        print("Saving Final Checkpoint Success!")
+        with open(cfg.LOGS_PATH, "a") as f:
+            f.write("Saving Final Checkpoint Success!\n")
+        wandb.log({"final_checkpoint_path": path})
 
     wandb.finish()

@@ -21,11 +21,11 @@ EVAL_FOLDERS = [
 ]  # Folder containing evaluation data
 
 # Configuration for the paths
-BUCKET_NAME = "cryptid-megalodon-compression-experiments"
-BUCKET_PATH = "s3://{}/".format(BUCKET_NAME)
-CHECKPOINT_NAME = ""
-LOAD_WEIGHTS_PATH = "/".join([BUCKET_PATH, CHECKPOINT_NAME])  # Path to save weights
-SAVE_WEIGHTS_PATH = BUCKET_PATH
+LOAD_WEIGHTS_PATH = "s3://cryptid-megalodon-compression-experiments/weights-text.pth"  # Path to save weights
+SAVE_WEIGHTS_DIR_PATH = (
+    "s3://cryptid-megalodon-compression-experiments"
+    # BUCKET_PATH  # The checkpoint will be the experiment name plus the wandb run ID.
+)
 LOGS_PATH = "logs-test-ag-cls.txt"  # Path to save logs
 
 # Configuration for the model
@@ -37,7 +37,7 @@ HIDDEN_SIZE = 768  # Hidden Size
 COMPRESS_BYTES = False  # Compress the content of the file before inference.
 
 # Configuration for the training
-EXPERIMENT_NAME = "compressed_ag_news_batch_256_epochs_100"
+EXPERIMENT_NAME = "boto3_upload_test"
 LOG_WANDB_ONLINE = False  # Log wandb to online server. If true, you will need to provide your wandb API key as an environment variable when running the docker container.
 RANDOM_SEED = 0  # Controls the random number seed for all RNGs in the experiment.
 NUM_EPOCHS = 1  # Number of epochs to train for (if early stopping doesn't intervene)
@@ -49,6 +49,7 @@ PATCH_SAMPLING_BATCH_SIZE = (
 )
 LOAD_FROM_CHECKPOINT = False  # Whether to load weights from a checkpoint
 LOAD_FROM_PRETRAINED = False  # Whether to load pre-trained weights from a checkpoint
+SAVE_FINAL_MODEL = True  # Whether to save the final checkpoint or not.
 CONVERSION_MODE = None  # Mode of conversion (None for regular training, input->output for unidirectional conversion, input&output for bidirectional conversion)
 
 # Configuration for inference

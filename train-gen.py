@@ -4,7 +4,9 @@ import time
 from copy import deepcopy
 
 import config as cfg
+import dotenv
 import numpy as np
+import smart_open
 import torch
 import torch.distributed as dist
 import utils
@@ -14,6 +16,8 @@ from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 from transformers import GPT2Config, get_scheduler
+
+import wandb
 
 # Set up distributed training
 world_size = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
@@ -37,6 +41,18 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 batch_size = cfg.BATCH_SIZE
+
+# Load environment variables from .env file.
+# -- Set AWS or other cloud storage keys as env variables here.
+# -- Set wandb API key as env variable here.
+dotenv.load_dotenv()
+
+wandb.init(
+    project="Compression Experiments",
+    name=cfg.EXPERIMENT_NAME,
+    config=utils.get_config_vars(cfg),
+    mode="online" if cfg.LOG_WANDB_ONLINE else "offline",
+)
 
 patch_config = GPT2Config(
     num_hidden_layers=cfg.PATCH_NUM_LAYERS,
@@ -234,6 +250,8 @@ def train_epoch():
         tqdm_train_set.set_postfix(
             {str(global_rank) + "_train_loss": total_train_loss / iter_idx}
         )
+        if iter_idx % 20 == 0:
+            wandb.log({"batch_loss": loss.item()})
         iter_idx += 1
 
     return total_train_loss / (iter_idx - 1)
@@ -259,6 +277,7 @@ def eval_epoch():
             {str(global_rank) + "_eval_loss": total_eval_loss / iter_idx}
         )
         iter_idx += 1
+    wandb.log({"total_eval_loss": total_eval_loss})
     return total_eval_loss / (iter_idx - 1)
 
 
@@ -311,9 +330,13 @@ if __name__ == "__main__":
     model = model.to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.LEARNING_RATE)
 
-    if cfg.LOAD_FROM_PRETRAINED and os.path.exists(cfg.LOAD_WEIGHTS_PATH):
+    if cfg.LOAD_FROM_PRETRAINED:
+        print("Loading Pretrained Model:", cfg.LOAD_WEIGHTS_PATH)
+        with open(cfg.LOGS_PATH, "a") as f:
+            f.write("Loading Pretrained Model: " + cfg.LOAD_WEIGHTS_PATH + "\n")
         # Load checkpoint to CPU
-        checkpoint = torch.load(cfg.LOAD_WEIGHTS_PATH, map_location="cpu")
+        with smart_open.open(cfg.LOAD_WEIGHTS_PATH, "rb") as f:
+            checkpoint = torch.load(f, map_location="cpu")
 
         # Here, model is assumed to be on GPU
         # Load state dict to CPU model first, then move the model to GPU
@@ -338,8 +361,12 @@ if __name__ == "__main__":
         min_eval_loss = float("inf")
 
     if cfg.LOAD_FROM_CHECKPOINT:
+        print("Loading Checkpoint:", cfg.LOAD_WEIGHTS_PATH)
+        with open(cfg.LOGS_PATH, "a") as f:
+            f.write("Loading Checkpoint: " + cfg.LOAD_WEIGHTS_PATH + "\n")
         # Load checkpoint to CPU
-        checkpoint = torch.load(cfg.LOAD_WEIGHTS_PATH, map_location="cpu")
+        with smart_open.open(cfg.LOAD_WEIGHTS_PATH, "rb") as f:
+            checkpoint = torch.load(f, map_location="cpu")
 
         # Here, model is assumed to be on GPU
         # Load state dict to CPU model first, then move the model to GPU
@@ -372,6 +399,13 @@ if __name__ == "__main__":
         print("-" * 21 + "Epoch " + str(epoch) + "-" * 21)
         train_loss = train_epoch()
         eval_loss = eval_epoch()
+        wandb.log(
+            {
+                "epoch_num": epoch,
+                "epoch_train_acc": train_loss,
+                "epoch_eval_acc": eval_loss,
+            }
+        )
         if global_rank == 0:
             with open(cfg.LOGS_PATH, "a") as f:
                 f.write(
@@ -388,17 +422,6 @@ if __name__ == "__main__":
             if eval_loss < min_eval_loss:
                 best_epoch = epoch
                 min_eval_loss = eval_loss
-                checkpoint = {
-                    "model": model.module.state_dict()
-                    if hasattr(model, "module")
-                    else model.state_dict(),
-                    "optimizer": optimizer.state_dict(),
-                    "lr_sched": lr_scheduler.state_dict(),
-                    "epoch": epoch,
-                    "best_epoch": best_epoch,
-                    "min_eval_loss": min_eval_loss,
-                }
-                torch.save(checkpoint, cfg.SAVE_WEIGHTS_PATH)
 
         if world_size > 1:
             dist.barrier()
@@ -406,3 +429,34 @@ if __name__ == "__main__":
     if global_rank == 0:
         print("Best Eval Epoch : " + str(best_epoch))
         print("Min Eval Loss : " + str(min_eval_loss))
+
+    if cfg.SAVE_FINAL_MODEL:
+        checkpoint = {
+            "model": model.module.state_dict()
+            if hasattr(model, "module")
+            else model.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "lr_sched": lr_scheduler.state_dict(),
+            "epoch": epoch,
+            "best_epoch": best_epoch,
+            "min_eval_loss": min_eval_loss,
+        }
+        path = os.path.join(
+            cfg.SAVE_WEIGHTS_DIR_PATH,
+            str.join(cfg.EXPERIMENT_NAME, wandb.run.id),
+        )
+        print("Saving Final Checkpoint:", path)
+        with open(cfg.LOGS_PATH, "a") as f:
+            f.write("Saving Final Checkpoint: " + path)
+        with smart_open.open(
+            path,
+            "wb",
+            transport_params={"min_part_size": 50 * 1024**2, "multipart_upload": True},
+        ) as f:
+            torch.save(checkpoint, f)
+        print("Saving Final Checkpoint Success!")
+        with open(cfg.LOGS_PATH, "a") as f:
+            f.write("Saving Final Checkpoint Success!\n")
+        wandb.log({"final_checkpoint_path": path})
+
+wandb.finish()
