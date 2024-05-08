@@ -122,6 +122,9 @@ def read_bytes(filename):
     with open(filename, "rb") as f:
         file_bytes = f.read()
 
+    if cfg.COMPRESS_BYTES:
+        file_bytes = utils.compress_file_data(file_bytes)
+
     bytes = []
     for byte in file_bytes:
         bytes.append(byte)
