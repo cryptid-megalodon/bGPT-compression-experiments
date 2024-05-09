@@ -42,7 +42,7 @@ LOG_WANDB_ONLINE = True  # Log wandb to online server. If true, you will need to
 RANDOM_SEED = 0  # Controls the random number seed for all RNGs in the experiment.
 NUM_EPOCHS = 32  # Number of epochs to train for (if early stopping doesn't intervene)
 LEARNING_RATE = 1e-4  # Learning rate for the optimizer
-BATCH_SIZE = 32  # Batch size for training
+BATCH_SIZE = 16  # Batch size for training
 ACCUMULATION_STEPS = 1  # Accumulation steps to simulate large batch size
 PATCH_SAMPLING_BATCH_SIZE = (
     0  # Batch size for patch during training, 0 for full conaudio
