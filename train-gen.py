@@ -287,6 +287,8 @@ def eval_epoch():
 # train and eval
 if __name__ == "__main__":
     # load filenames under train and eval folder
+    print("Train data path:", cfg.TRAIN_FOLDERS)
+    print("Eval Data path:", cfg.EVAL_FOLDERS)
     train_files = utils.list_files_in_directory(cfg.TRAIN_FOLDERS)
     eval_files = utils.list_files_in_directory(cfg.EVAL_FOLDERS)
 
@@ -446,7 +448,7 @@ if __name__ == "__main__":
         }
         path = os.path.join(
             cfg.SAVE_WEIGHTS_DIR_PATH,
-            str.join(cfg.EXPERIMENT_NAME, wandb.run.id),
+            cfg.EXPERIMENT_NAME + "-" + str(wandb.run.id),
         )
         print("Saving Final Checkpoint:", path)
         with open(cfg.LOGS_PATH, "a") as f:

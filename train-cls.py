@@ -231,6 +231,8 @@ def eval_epoch():
 
 # train and eval
 if __name__ == "__main__":
+    print("Train data path:", cfg.TRAIN_FOLDERS)
+    print("Eval Data path:", cfg.EVAL_FOLDERS)
     labels = train_set.labels
 
     train_sampler = DistributedSampler(
@@ -397,7 +399,7 @@ if __name__ == "__main__":
         }
         path = os.path.join(
             cfg.SAVE_WEIGHTS_DIR_PATH,
-            str.join(cfg.EXPERIMENT_NAME, wandb.run.id),
+            cfg.EXPERIMENT_NAME + "-" + str(wandb.run.id),
         )
         print("Saving Final Checkpoint:", path)
         with open(cfg.LOGS_PATH, "a") as f:
