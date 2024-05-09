@@ -4,6 +4,7 @@ import time
 from copy import deepcopy
 
 import config as cfg
+import datasets
 import dotenv
 import numpy as np
 import smart_open
@@ -12,8 +13,7 @@ import torch.distributed as dist
 import utils
 from torch.cuda.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.data import DataLoader, Dataset
-from torch.utils.data.distributed import DistributedSampler
+from torch.utils.data import DataLoader, Dataset, IterableDataset
 from tqdm import tqdm
 from transformers import GPT2Config, get_scheduler
 
@@ -122,6 +122,10 @@ def read_bytes(filename):
     with open(filename, "rb") as f:
         file_bytes = f.read()
 
+    return prepare_bytes(file_bytes, ext=ext)
+
+
+def prepare_bytes(file_bytes, ext=[116, 120, 116]):  # Default ext is b"txt"
     if cfg.COMPRESS_BYTES:
         file_bytes = utils.compress_file_data(file_bytes)
 
@@ -137,7 +141,7 @@ def read_bytes(filename):
 
     if len(bytes) > cfg.PATCH_LENGTH * cfg.PATCH_SIZE:
         print(
-            f"Warning: {filename} is too long, truncating to {cfg.PATCH_LENGTH*cfg.PATCH_SIZE} bytes."
+            f"Warning: text is too long, truncating to {cfg.PATCH_LENGTH*cfg.PATCH_SIZE} bytes."
         )
         bytes = bytes[: cfg.PATCH_LENGTH * cfg.PATCH_SIZE]
 
@@ -214,6 +218,27 @@ class ByteDataset(Dataset):
         return file_bytes, file_masks
 
 
+class WikipediaByteDataset(IterableDataset):
+    def __init__(self, dataset):
+        self.wikipedia_iterable = iter(dataset)
+        self.length = None
+
+    def __iter__(self):
+        example = next(self.wikipedia_iterable)
+        file_bytes, file_masks = prepare_bytes(bytes(example["text"], "utf-8"))
+
+        file_bytes = torch.tensor(file_bytes, dtype=torch.long)
+        file_masks = torch.tensor(file_masks, dtype=torch.long)
+
+        yield file_bytes, file_masks
+
+    def __len__(self):
+        return self.length
+
+    def set_length(self, length):
+        self.length = length
+
+
 # call model with a batch of input
 def process_one_batch(batch):
     input_patches, input_masks = batch
@@ -287,43 +312,37 @@ def eval_epoch():
 # train and eval
 if __name__ == "__main__":
     # load filenames under train and eval folder
-    print("Train data path:", cfg.TRAIN_FOLDERS)
-    print("Eval Data path:", cfg.EVAL_FOLDERS)
-    train_files = utils.list_files_in_directory(cfg.TRAIN_FOLDERS)
-    eval_files = utils.list_files_in_directory(cfg.EVAL_FOLDERS)
-
-    train_batch_nums = int(len(train_files) / batch_size)
-    eval_batch_nums = int(len(eval_files) / batch_size)
-
-    random.shuffle(train_files)
-    random.shuffle(eval_files)
-
-    train_files = train_files[: train_batch_nums * batch_size]
-    eval_files = eval_files[: eval_batch_nums * batch_size]
-
-    train_set = ByteDataset(train_files)
-    eval_set = ByteDataset(eval_files)
-
-    train_sampler = DistributedSampler(
-        train_set, num_replicas=world_size, rank=local_rank
+    wikipedia_dataset = datasets.load_dataset(
+        "wikipedia", "20220301.en", streaming=True, split="train"
     )
-    eval_sampler = DistributedSampler(
-        eval_set, num_replicas=world_size, rank=local_rank
-    )
+    wikipedia_dataset.shuffle(seed=cfg.RANDOM_SEED)
+    eval_wikipedia_dataset = wikipedia_dataset.take(60000)
+    train_wikipedia_dataset = wikipedia_dataset.skip(60000)
+    train_set = WikipediaByteDataset(train_wikipedia_dataset)
+    eval_set = WikipediaByteDataset(eval_wikipedia_dataset)
+    train_set.set_length(6298670 - 60000)
+    eval_set.set_length(60000)
+
+    # train_sampler = DistributedSampler(
+    #     train_set, num_replicas=world_size, rank=local_rank
+    # )
+    # eval_sampler = DistributedSampler(
+    #     eval_set, num_replicas=world_size, rank=local_rank
+    # )
 
     train_set = DataLoader(
         train_set,
         batch_size=batch_size,
         collate_fn=collate_batch,
-        sampler=train_sampler,
-        shuffle=(train_sampler is None),
+        # sampler=train_sampler,
+        # shuffle=(train_sampler is None),
     )
     eval_set = DataLoader(
         eval_set,
         batch_size=batch_size,
         collate_fn=collate_batch,
-        sampler=eval_sampler,
-        shuffle=(train_sampler is None),
+        # sampler=eval_sampler,
+        # shuffle=(train_sampler is None),
     )
 
     lr_scheduler = get_scheduler(
@@ -399,8 +418,8 @@ if __name__ == "__main__":
         min_eval_loss = float("inf")
 
     for epoch in range(1 + pre_epoch, cfg.NUM_EPOCHS + 1):
-        train_sampler.set_epoch(epoch)
-        eval_sampler.set_epoch(epoch)
+        # train_sampler.set_epoch(epoch)
+        # eval_sampler.set_epoch(epoch)
         print("-" * 21 + "Epoch " + str(epoch) + "-" * 21)
         train_loss = train_epoch()
         eval_loss = eval_epoch()
