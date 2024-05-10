@@ -44,9 +44,6 @@ USER appuser
 # Expose the port that the application listens on.
 EXPOSE 8000
 
-# Copy data dir separatly to take advantage of layer caching.
-COPY data ./data
-
 # Copy the source code into the container.
 # NOTE: exclude flag only available in docker/dockerfile:1.7-labs syntax as of 05/03/2024.
 COPY --exclude=data . .
