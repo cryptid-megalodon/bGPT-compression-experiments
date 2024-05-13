@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Source directory where the files are located
-src_dir="./wikipedia/uncompressed/train"
+src_dir="./uncompressed/train"
 
 # Destination directory where the files will be moved
 dest_dir="${src_dir}/../test"
