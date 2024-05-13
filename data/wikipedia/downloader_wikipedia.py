@@ -3,7 +3,7 @@ import os
 from datasets import load_dataset
 
 # Define the output directory
-output_dir = "./wikipedia/uncompressed"
+output_dir = "./uncompressed"
 
 # Load the dataset
 dataset = load_dataset("wikipedia", "20220301.en")
