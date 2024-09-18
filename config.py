@@ -37,18 +37,19 @@ HIDDEN_SIZE = 768  # Hidden Size
 COMPRESS_BYTES = True  # Compress the content of the file before inference.
 
 # Configuration for the training
-EXPERIMENT_NAME = "compression-pretraining-text"
+EXPERIMENT_NAME = "compressed_batch_8"
 LOG_WANDB_ONLINE = True  # Log wandb to online server. If true, you will need to provide your wandb API key as an environment variable when running the docker container.
 RANDOM_SEED = 0  # Controls the random number seed for all RNGs in the experiment.
 NUM_EPOCHS = 32  # Number of epochs to train for (if early stopping doesn't intervene)
 LEARNING_RATE = 1e-4  # Learning rate for the optimizer
-BATCH_SIZE = 16  # Batch size for training
+BATCH_SIZE = 8  # Batch size for training
 ACCUMULATION_STEPS = 1  # Accumulation steps to simulate large batch size
 PATCH_SAMPLING_BATCH_SIZE = (
     0  # Batch size for patch during training, 0 for full conaudio
 )
 LOAD_FROM_CHECKPOINT = False  # Whether to load weights from a checkpoint
-LOAD_FROM_PRETRAINED = True  # Whether to load pre-trained weights from a checkpoint
+LOAD_FROM_PRETRAINED = False  # Whether to load pre-trained weights from a checkpoint
+SAVE_BEST_MODEL = True  # Whether to save the checkpoint with the lowest loss.
 SAVE_FINAL_MODEL = True  # Whether to save the final checkpoint or not.
 CONVERSION_MODE = None  # Mode of conversion (None for regular training, input->output for unidirectional conversion, input&output for bidirectional conversion)
 

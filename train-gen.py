@@ -427,6 +427,41 @@ if __name__ == "__main__":
             if eval_loss < min_eval_loss:
                 best_epoch = epoch
                 min_eval_loss = eval_loss
+                if cfg.SAVE_BEST_MODEL:
+                    checkpoint = {
+                        "model": model.module.state_dict()
+                        if hasattr(model, "module")
+                        else model.state_dict(),
+                        "optimizer": optimizer.state_dict(),
+                        "lr_sched": lr_scheduler.state_dict(),
+                        "epoch": epoch,
+                        "best_epoch": best_epoch,
+                        "min_eval_loss": min_eval_loss,
+                    }
+                    path = (
+                        cfg.SAVE_WEIGHTS_DIR_PATH
+                        + "/best_model-"
+                        + cfg.EXPERIMENT_NAME
+                        + "-"
+                        + str(wandb.run.id)
+                        + ".pth"
+                    )
+                    print("Saving New Best Checkpoint:", path)
+                    with open(cfg.LOGS_PATH, "a") as f:
+                        f.write("Saving New Best Checkpoint: " + path)
+                    with smart_open.open(
+                        path,
+                        "wb",
+                        transport_params={
+                            "min_part_size": 50 * 1024**2,
+                            "multipart_upload": True,
+                        },
+                    ) as f:
+                        torch.save(checkpoint, f)
+                    print("Saving New Best Checkpoint Success!")
+                    with open(cfg.LOGS_PATH, "a") as f:
+                        f.write("Saving New Best Checkpoint Success!\n")
+                    wandb.log({"best_checkpoint_path": path})
 
         if world_size > 1:
             dist.barrier()
@@ -446,9 +481,13 @@ if __name__ == "__main__":
             "best_epoch": best_epoch,
             "min_eval_loss": min_eval_loss,
         }
-        path = os.path.join(
-            cfg.SAVE_WEIGHTS_DIR_PATH,
-            cfg.EXPERIMENT_NAME + "-" + str(wandb.run.id),
+        path = (
+            cfg.SAVE_WEIGHTS_DIR_PATH
+            + "/final_model-"
+            + cfg.EXPERIMENT_NAME
+            + "-"
+            + str(wandb.run.id)
+            + ".pth"
         )
         print("Saving Final Checkpoint:", path)
         with open(cfg.LOGS_PATH, "a") as f:

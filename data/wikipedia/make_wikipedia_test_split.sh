@@ -9,6 +9,6 @@ dest_dir="${src_dir}/../test"
 # Check if the destination directory exists, create it if it doesn't
 [ ! -d "$dest_dir" ] && mkdir -p "$dest_dir"
 
-# Move 160,000 random files from source to destination
-find "$src_dir" -type f -name '*.txt' | shuf -n 160000 | xargs -I{} mv {} "$dest_dir"
+# Move 80,000 random files from source to destination
+find "$src_dir" -type f -name '*.txt' | shuf -n 80000 | xargs -I{} mv {} "$dest_dir"
 
