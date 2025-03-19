@@ -1,8 +1,8 @@
-# Byte LLMs on Compressed Data
+# Byte-based LLMs on Compressed Data
 
 This repository is a fork of the original [bGPT repository](https://github.com/byte-gpt/bGPT). The original repository was created by [Sander Wood](https://github.com/sanderwood)
-and [Sander Dieleman](https://github.com/sander-dieleman). Their original README is copied
-in the sections below and their original MIT license has been retained.
+please see the published paper for more details: [Beyond Language Models: Byte Models are Digital World Simulators](https://arxiv.org/abs/2402.19155).
+Their original README is reproduced in later sections and their original MIT license has been retained.
 
 ## Introduction
 I was impressed by the results of byte-based Transformers. Transformers predicting byte 
@@ -40,6 +40,7 @@ approaches to quickly mapping inputs to vector spaces that more computationally 
 attention layers operate on are more promising. I did accomplish my learning goals and feel
 more confident in my ML research skills beyond my personal studies and class work.
 
+=========================== Start of the original README ===================================
 
 # Beyond Language Models: Byte Models are Digital World Simulators
 
