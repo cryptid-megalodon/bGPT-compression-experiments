@@ -1,39 +1,40 @@
 # Byte-based LLMs on Compressed Data
 
-This repository is a fork of the original [bGPT repository](https://github.com/byte-gpt/bGPT).
-The original repository was created by [Sander Wood](https://github.com/sanderwood).
+This repository is a fork of the original [bGPT repo](https://github.com/byte-gpt/bGPT).
+The original repo was created by [Sander Wood](https://github.com/sanderwood).
 Please see the published paper for more details: [Beyond Language Models: Byte Models are Digital World Simulators](https://arxiv.org/abs/2402.19155).
-Their original README is reproduced in later sections and their original MIT license
-has been retained.
+Their original README is reproduced in later sections of this file and its original MIT
+license has been retained.
 
 ## Introduction
 I was impressed by the results of byte-based Transformers. Transformers predicting byte 
-sequences is a powerful multi-modal approach that could be applied across most digital
+sequences are a powerful multi-modal approach that could be applied across most digital
 formats. There are interesting applications for this approach including: transformation
 of data across file formats, generalized learning across file types, and an alternative
 approach to specialized token processing for multi-modal models. The chief drawback of byte-based
-transformers is the greatly expanded input sequence length due to longer byte string lengths
-compared to string lengths of higher level data representations like characters.
+transformers is the greatly expanded input sequence length. This is due to the longer
+byte string sequence length required to represent data.
 
 ## Compressed Data Hypothesis
 I had an admittedly outlandish idea to attempt to fine-tune a byte-based transformer on
-compressed data. Transformers seem remarkably robust to learning data patterns, and my
-hypothesis was that certain compressed data formats like zip, which use string lookup
-tables and offer lossless compression of all data types, might be possible for
-transformers to learn. The lookup table can be thought of as a Python dictionary where
-a single ID references a common sequence found throughout the file. This enables zip
-to replace that sequence with a single identifier in the lookup table. I believed the
-attention mechanism could easily learn the lookup table pattern and process the zipped
-data while greatly reducing the input sequence length of longer files, leading to more
-efficient training and inference. This would ameliorate the chief drawback of
-byte-based transformers.
+compressed data. Transformers are remarkably robust to learning data patterns, and my
+hypothesis was that certain compressed data formats could also be predicted. Data formats
+like zip, which use string lookup tables and offer lossless compression of all data types,
+seemed like reasonable targets to attend. The lookup table can be thought of as a
+Python dictionary where a single ID references a common sequence found throughout the
+file. This enables zip to replace that sequence with a single identifier in the lookup
+table. I believed the attention mechanism could easily learn the lookup table pattern
+and process the zipped data while greatly reducing the input sequence length of longer
+files, leading to more efficient training and inference. This would ameliorate the
+chief drawback of byte-based transformers.
 
 ## Personal Project Goals
 Aside from the theoretical basis for the project, I thought this would be a good way to
 learn more about ML research since the bGPT model was relatively small and I could easily
-fine-tune it on compressed data (e.g. zipped copies of Wikipedia and news article datasets).
-I could focus on practical implementation details like integrating the code with wandb for
-tracking and learning more about launching training jobs on neoclouds using docker.
+fine-tune it on compressed data that I prepared (e.g. zipped copies of Wikipedia and news
+article datasets). I could focus on practical implementation details I wanted to practice
+like working with research code bases, integrating with wandb, conda and other infra tools
+like launching training jobs with docker on neoclouds.
 
 ## Results
 I was able to train a byte-based transformer on a zipped copy of Wikipedia and a zipped
@@ -50,10 +51,9 @@ would be better suited for long input sequences. Alternatively, advancements in
 tokenization may make it unnecessary to compress data before processing.
 
 The allure of the simplicity and universality of byte-based transformers is still
-appealing, but I think other approaches to quickly mapping inputs to vector spaces
-that more computationally expensive attention layers operate on are more promising.
-I did accomplish my learning goals and feel more confident in my ML research skills
-beyond my personal studies and class work.
+appealing, but I think other approaches to handling long input sequence lenghts are
+more promising. I did accomplish my learning goals and feel more confident in my ML
+research skills beyond my personal studies and class work.
 
 =========================== Start of the original README ===================================
 
