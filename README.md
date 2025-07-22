@@ -28,6 +28,17 @@ and process the zipped data while greatly reducing the input sequence length of 
 files, leading to more efficient training and inference. This would ameliorate the
 chief drawback of byte-based transformers.
 
+### Information Theory Disagrees with my hypothesis!
+I wanted to point out that later investigations into how the ZIP Deflate algorithm works would
+throw a bucket of cold water on my hypothesis. The Deflate algorithm uses a near entropy
+optimal compression algorithm meaning the sequence of bytes would look mostly like random
+noise to the model. Interestingly, some researchers have thrown some pretty big transformers
+at this problem in an attempt to discover a model that might be the basis for an even more
+efficient compression algorithm. They were not succcessful. I didn't fully appreciate this
+until I better understood how the compression algorithm works, but I was having a lot of fun
+with the project and learning a lot. I decided to finish a few runs and verify I didn't have
+compression breakthrough on my hands :).
+
 ## Personal Project Goals
 Aside from the theoretical basis for the project, I thought this would be a good way to
 learn more about ML research since the bGPT model was relatively small and I could easily
@@ -40,15 +51,21 @@ like launching training jobs with docker on neoclouds.
 I was able to train a byte-based transformer on a zipped copy of Wikipedia and a zipped
 copy of news articles; however, training would always collapse. Fine-tuning alone was
 unable to learn the compression algorithm. I considered following the author's original
-pre-training approach but estimated it would cost ~$500 in GPU time.
+pre-training approach but estimated it would cost ~$500 in GPU time. The WandB charts below
+show the training loss and eval accuracy for the smaller news datasets between the uncompressed
+and compressed fine-tuning runs. These charts were typical of the other 13 parameter sweeps runs
+I tried with the larger wikipedia dataset.
+
+<image src=wandb_graphs/loss.png width=500>
+<image src=wandb_graphs/accuracy.png width=500>
 
 Through working on this project, I discovered some fundamental flaws in this approach.
 While there may be benefits to one-time compression of a large training set, all input
 would also need to undergo compression before inference, leading to increased
-computation cost and latency. I also became convinced that mixed transformer
-architectures like Jamba -- which use a combination of Mamba and Attention layers --
-would be better suited for long input sequences. Alternatively, advancements in
-tokenization may make it unnecessary to compress data before processing.
+computation cost and latency. Also, during the course of this training algorithmic advances
+like mamba-based input layer architectures (e.g. Jamba) were announced. I was convinced that
+the cost of input compression would not exceed architectural reductions to input sequece costs.
+Advancements in tokenization may make it unnecessary to compress data before processing.
 
 The allure of the simplicity and universality of byte-based transformers is still
 appealing, but I think other approaches to handling long input sequence lenghts are
